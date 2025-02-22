@@ -31,12 +31,20 @@ openai_ef = embedding_functions.OpenAIEmbeddingFunction(
 
 # Get both collections
 try:
-    title_collection = chroma_client.get_collection(
-        name="course_titles",
+    title_collection_undergrad = chroma_client.get_collection(
+        name="undergrad_titles",
         embedding_function=openai_ef
     )
-    full_collection = chroma_client.get_collection(
-        name="courses",
+    full_collection_undergrad = chroma_client.get_collection(
+        name="undergrad_courses",
+        embedding_function=openai_ef
+    )
+    title_collection_grad = chroma_client.get_collection(
+        name="grad_titles",
+        embedding_function=openai_ef
+    )
+    full_collection_grad = chroma_client.get_collection(
+        name="grad_courses",
         embedding_function=openai_ef
     )
     print("Successfully connected to existing collections")
@@ -65,7 +73,8 @@ def get_session_memory(session_id):
         conversation_memory[session_id] = {
             'messages': deque(maxlen=MEMORY_LIMIT),
             'last_access': now,
-            'mentioned_courses': set()
+            'mentioned_courses': set(),
+            'student_level': 'undergraduate'  # Default to undergraduate
         }
     else:
         conversation_memory[session_id]['last_access'] = now
@@ -83,9 +92,15 @@ def update_session_memory(session_id, user_message, ai_response, mentioned_cours
     memory['mentioned_courses'].update(mentioned_courses)
 
 def get_relevant_courses(query, session_id=None, n_results=3):
-    """Retrieve relevant courses based on query with conversation memory"""
-    query = query.upper()
+    """Retrieve relevant courses based on query and student level"""
     memory = get_session_memory(session_id) if session_id else None
+    student_level = memory['student_level'] if memory else 'undergraduate'
+    
+    # Select appropriate collections based on student level
+    title_collection = title_collection_grad if student_level == 'graduate' else title_collection_undergrad
+    full_collection = full_collection_grad if student_level == 'graduate' else full_collection_undergrad
+    
+    query = query.upper()
     
     # Extract course numbers from current query and conversation history
     course_numbers = set()
@@ -288,9 +303,23 @@ def query_openai(prompt):
 @app.route('/chat', methods=['POST'])
 def chat():
     user_input = request.json.get('message')
-    session_id = request.json.get('session_id')  # Frontend should provide a session ID
+    session_id = request.json.get('session_id')
     
-    print(f"Received message: {user_input} for session: {session_id}")
+    # Check if user is indicating their level
+    level_patterns = {
+        'graduate': r'\b(grad|graduate|master|masters|phd|doctoral)\b',
+        'undergraduate': r'\b(undergrad|undergraduate)\b'
+    }
+    
+    memory = get_session_memory(session_id)
+    
+    # Update student level if indicated in message
+    for level, pattern in level_patterns.items():
+        if re.search(pattern, user_input.lower()):
+            memory['student_level'] = level
+            response = f"I'll focus on {level} level courses for you. How can I help?"
+            update_session_memory(session_id, user_input, response, set())
+            return jsonify({"response": response})
     
     # Get relevant courses
     relevant_courses = get_relevant_courses(user_input, session_id)
