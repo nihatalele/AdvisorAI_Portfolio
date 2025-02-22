@@ -12,7 +12,13 @@ from werkzeug.utils import secure_filename
 import PyPDF2 
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+}) 
 
 UPLOAD_FOLDER = './uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -20,7 +26,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-with open('/Users/Siddarth/AdvisorAI/backend/cse_courses.json') as f:
+with open('cse_courses.json') as f:
     courses = json.load(f)
 
 df = pd.DataFrame(courses)
@@ -37,7 +43,7 @@ df['credits'] = df['units'].str.extract('(\d+)').astype(int)
 vectorizer = TfidfVectorizer()
 vectorizer.fit(df['title'].tolist() + df['description'].tolist()) 
 
-client = OpenAI(api_key='API_KEY')
+client = OpenAI(api_key='')
 
 
 def extract_text_from_pdf(file_path):
