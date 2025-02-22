@@ -21,59 +21,95 @@ def init_database():
     with open('cse_courses.json') as f:
         courses = json.load(f)
 
-    # Delete existing collection if it exists
-    try:
-        chroma_client.delete_collection(name="courses")
-        print("Deleted existing collection")
-    except:
-        print("No existing collection found")
+    # Delete existing collections if they exist
+    for collection_name in ["courses", "course_titles"]:
+        try:
+            chroma_client.delete_collection(name=collection_name)
+            print(f"Deleted existing collection: {collection_name}")
+        except:
+            print(f"No existing collection found: {collection_name}")
 
-    # Create new collection
-    collection = chroma_client.create_collection(
+    # Create two collections: one for titles and one for full descriptions
+    title_collection = chroma_client.create_collection(
+        name="course_titles",
+        embedding_function=openai_ef
+    )
+    
+    full_collection = chroma_client.create_collection(
         name="courses",
         embedding_function=openai_ef
     )
 
     # Prepare documents for embedding
-    documents = []
+    title_documents = []
+    full_documents = []
     metadatas = []
     ids = []
     
     for i, course in enumerate(courses):
-        # Create a comprehensive document for embedding
-        doc = f"Course: {course['number']} - {course['title']}\n"
-        doc += f"Description: {course['description']}\n"
-        doc += f"Prerequisites: {course['prerequisites']}\n"
-        doc += f"Units: {course['units']}"
+        # Standardize course number format (remove space if present)
+        course_num = course['number'].replace(' ', '')
         
-        documents.append(doc)
+        # Create title-focused document with repeated course number for emphasis
+        title_doc = f"""Course Number: {course_num} {course_num} {course_num}
+Course: {course_num} - {course['title']}
+Search Terms: {course_num} CSE {course_num[-4:]} {course['title']}"""
+        
+        # Create comprehensive document with emphasized course number
+        full_doc = f"""Course Number: {course_num} {course_num} {course_num}
+Course Title: {course_num} - {course['title']}
+Description: {course['description']}
+Prerequisites: {course['prerequisites']}
+Units: {course['units']}
+Search Terms: {course_num} CSE {course_num[-4:]} {course['title']}"""
+        
+        title_documents.append(title_doc)
+        full_documents.append(full_doc)
+        
+        # Enhanced metadata with standardized course number
         metadatas.append({
-            "number": course['number'],
+            "number": course_num,
+            "number_raw": course_num[-4:],  # Just the numeric part
             "title": course['title'],
             "prerequisites": course['prerequisites'],
             "units": course['units']
         })
         ids.append(str(i))
     
-    # Add documents to collection
+    # Add documents to collections
     try:
-        collection.add(
-            documents=documents,
+        title_collection.add(
+            documents=title_documents,
             metadatas=metadatas,
             ids=ids
         )
-        print(f"Successfully added {len(documents)} documents to the database")
+        print(f"Successfully added {len(title_documents)} documents to title collection")
         
-        # Verify the documents were added
-        results = collection.query(
-            query_texts=["database systems"],
-            n_results=1
+        full_collection.add(
+            documents=full_documents,
+            metadatas=metadatas,
+            ids=ids
         )
-        print("\nVerification query result:")
-        print(results)
+        print(f"Successfully added {len(full_documents)} documents to full collection")
         
     except Exception as e:
-        print(f"Error adding documents to collection: {e}")
+        print(f"Error adding documents to collections: {e}")
+
+    # Add verification step
+    try:
+        # Verify a few known courses
+        test_courses = ["CSE3901", "CSE3902", "CSE3241"]
+        print("\nVerifying course entries:")
+        for test_course in test_courses:
+            result = full_collection.get(
+                where={"number": test_course}
+            )
+            if result['documents']:
+                print(f"Found {test_course}: {result['documents'][0][:100]}...")
+            else:
+                print(f"WARNING: {test_course} not found in database!")
+    except Exception as e:
+        print(f"Error during verification: {e}")
 
 if __name__ == "__main__":
     init_database() 

@@ -16,6 +16,7 @@ function App() {
   const chatEndRef = useRef(null);
   const [uploadedFiles, setUploadedFiles] = useState([]); // State for uploaded files
   const [theme, setTheme] = useState('light');
+  const [sessionId, setSessionId] = useState(null);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -26,6 +27,12 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setSessionId(Date.now().toString());
+    }
+  }, [sessionId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,7 +45,10 @@ function App() {
     setError(null);
 
     try {
-      const res = await axios.post('http://127.0.0.1:5000/chat', { message });
+      const res = await axios.post('http://127.0.0.1:5000/chat', { 
+        message,
+        session_id: sessionId  // Include session ID in requests
+      });
       const aiMessage = { role: 'assistant', content: res.data.response };
       setConversation((prev) => [...prev, aiMessage]);
     } catch (error) {
