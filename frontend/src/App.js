@@ -16,7 +16,6 @@ function App() {
   const chatEndRef = useRef(null);
   const [uploadedFiles, setUploadedFiles] = useState([]); // State for uploaded files
   const [theme, setTheme] = useState('light');
-  const [sessionId, setSessionId] = useState(null);
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -27,12 +26,6 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
-
-  useEffect(() => {
-    if (!sessionId) {
-      setSessionId(Date.now().toString());
-    }
-  }, [sessionId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,10 +38,7 @@ function App() {
     setError(null);
 
     try {
-      const res = await axios.post('http://127.0.0.1:5000/chat', { 
-        message,
-        session_id: sessionId  // Include session ID in requests
-      });
+      const res = await axios.post('http://127.0.0.1:5000/chat', { message });
       const aiMessage = { role: 'assistant', content: res.data.response };
       setConversation((prev) => [...prev, aiMessage]);
     } catch (error) {
@@ -70,10 +60,47 @@ function App() {
     }
   };
 
+  const onDrop = async (acceptedFiles) => {
+    if (acceptedFiles.length === 0) return;
+
+    const file = acceptedFiles[0];
+    if (file.type !== 'application/pdf') {
+      setError('Please upload a PDF file');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await axios.post('http://127.0.0.1:5000/upload-transcript', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const aiMessage = { 
+        role: 'assistant', 
+        content: response.data.response 
+      };
+      setConversation(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error('Error uploading transcript:', error);
+      setError('Error processing transcript. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: (acceptedFiles) => {
-      setUploadedFiles(acceptedFiles);
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf']
     },
+    maxFiles: 1
   });
 
   const handleUpload = async () => {
@@ -151,12 +178,12 @@ function App() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Render only the Upload File button styled like the Upload Transcript button */}
-        <div className={`drag-drop-container ${isDragActive ? 'drag-active' : ''}`} {...getRootProps()}>
+        <div 
+          {...getRootProps()} 
+          className={`dropzone ${isDragActive ? 'active' : ''}`}
+        >
           <input {...getInputProps()} />
-          <div onClick={handleUpload}>
-            <p>{uploadedFileName}</p>
-          </div>
+          <p>Drop your transcript PDF here, or click to select file</p>
         </div>
 
         <form onSubmit={handleSubmit} className="chat-input">
