@@ -12,12 +12,28 @@ import tiktoken
 from dotenv import load_dotenv
 from collections import deque
 from datetime import datetime
+import PyPDF2
+from werkzeug.utils import secure_filename
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# Add these configurations after the CORS setup and before the routes
+UPLOAD_FOLDER = './uploads'
+ALLOWED_EXTENSIONS = {'pdf'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Create uploads directory if it doesn't exist
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+def allowed_file(filename):
+    """Check if the file extension is allowed"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
@@ -334,6 +350,107 @@ def chat():
     update_session_memory(session_id, user_input, response, mentioned_courses)
     
     return jsonify({"response": response})
+
+def extract_courses_from_pdf(file_path):
+   """Extract text from PDF and identify course information"""
+   try:
+       pdf_reader = PyPDF2.PdfReader(file_path)
+      
+       # Check if PDF is encrypted
+       if pdf_reader.is_encrypted:
+           print("Error: This PDF is encrypted. Please provide an unencrypted PDF file.")
+          
+       text = ""
+       for page in pdf_reader.pages:
+           text += page.extract_text()
+
+
+       # Check if text was extracted
+       if not text.strip():
+           print("Error: No text could be extracted from the PDF. Please ensure the PDF contains readable text.")
+      
+
+
+       # Create a prompt for OpenAI to extract course information
+       prompt = f"""Please analyze this transcript text and extract all CSE (Computer Science) courses.
+       Format the response as a list of course numbers only (e.g., CSE 1223, CSE 2221, etc.).
+       Transcript text: {text}"""
+
+
+       response = client.chat.completions.create(
+           model="gpt-4",
+           messages=[
+               {"role": "system", "content": "You are a transcript analysis assistant. Extract only CSE course numbers from the transcript."},
+               {"role": "user", "content": prompt}
+           ]
+       )
+      
+       return response.choices[0].message.content
+   except Exception as e:
+       print(f"Error processing PDF: {str(e)}")
+       if "PyCryptodome" in str(e):
+           return "Error: The PDF file appears to be encrypted. Please provide an unencrypted PDF file."
+       return f"Error processing PDF: {str(e)}"
+
+
+@app.route('/upload-transcript', methods=['POST'])
+def upload_transcript():
+   if 'file' not in request.files:
+       return jsonify({"error": "No file part"}), 400
+  
+   file = request.files['file']
+   if file.filename == '':
+       return jsonify({"error": "No selected file"}), 400
+  
+   if file and allowed_file(file.filename):
+       try:
+           filename = secure_filename(file.filename)
+           file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+           file.save(file_path)
+          
+           # Extract courses from PDF
+           courses = extract_courses_from_pdf(file_path)
+          
+           # Clean up the uploaded file
+           os.remove(file_path)
+          
+           # Check if there was an error during extraction
+           if courses.startswith("Error:"):
+               return jsonify({"error": courses}), 400
+          
+           # Get course information for each extracted course
+           course_info = []
+           course_numbers = re.findall(r'CSE\s+\d{4}', courses)
+          
+           if not course_numbers:
+               return jsonify({"error": "No CSE courses found in the transcript"}), 400
+          
+           for course_num in course_numbers:
+               relevant_courses = get_relevant_courses(course_num, n_results=1)
+               if relevant_courses['documents'][0]:
+                   course_info.append(relevant_courses['documents'][0][0])
+          
+           response_text = f"""Based on your transcript, I can see you've taken the following courses:\n\n{courses}\n\n
+           Would you like specific information about any of these courses or recommendations for future courses based on your academic history?"""
+          
+           return jsonify({
+               "response": response_text,
+               "courses": course_info
+           })
+          
+       except Exception as e:
+           error_msg = str(e)
+           print(f"Error in upload_transcript: {error_msg}")
+           return jsonify({"error": f"Error processing file: {error_msg}"}), 500
+       finally:
+           # Ensure the uploaded file is cleaned up even if an error occurs
+           if os.path.exists(file_path):
+               os.remove(file_path)
+  
+   return jsonify({"error": "Invalid file type"}), 400
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
