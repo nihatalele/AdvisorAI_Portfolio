@@ -471,3 +471,13 @@ body, html {
 }
 
 /* ... update other color values similarly ... */
+
+.chat-message.error {
+  background: var(--error-bg, #fee2e2);
+  color: var(--error-text, #dc2626);
+  margin: 1rem auto;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--error-border, #fecaca);
+  text-align: center;
+}

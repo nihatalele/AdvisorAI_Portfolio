@@ -8,10 +8,11 @@ function App() {
   const [conversation, setConversation] = useState([
     {
       role: 'assistant',
-      content: "Hello! I'm your AI Academic Advisor, and I'm excited to help you with any questions about the CSE curriculum here at OSU! Feel free to ask away!",
+      content: "Hello! I'm your AI Academic Advisor, and I'm here to help you with questions about OSU's CSE curriculum. I can provide detailed information about courses, prerequisites, and program requirements. What would you like to know?",
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const chatEndRef = useRef(null);
   const [uploadedFiles, setUploadedFiles] = useState([]); // State for uploaded files
   const [theme, setTheme] = useState('light');
@@ -32,9 +33,9 @@ function App() {
 
     const newMessage = { role: 'user', content: message };
     setConversation([...conversation, newMessage]);
-
     setMessage('');
     setLoading(true);
+    setError(null);
 
     try {
       const res = await axios.post('http://127.0.0.1:5000/chat', { message });
@@ -42,6 +43,11 @@ function App() {
       setConversation((prev) => [...prev, aiMessage]);
     } catch (error) {
       console.error('Error fetching the AI response', error);
+      setError('Sorry, there was an error getting the response. Please try again.');
+      setConversation((prev) => [...prev, {
+        role: 'assistant',
+        content: 'I apologize, but I encountered an error. Please try asking your question again.',
+      }]);
     } finally {
       setLoading(false);
     }
@@ -125,6 +131,11 @@ function App() {
               <span className="ellipsis"></span>
               <span className="ellipsis"></span>
               <span className="ellipsis"></span>
+            </div>
+          )}
+          {error && (
+            <div className="chat-message error">
+              <p>{error}</p>
             </div>
           )}
           <div ref={chatEndRef} />
