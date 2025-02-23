@@ -16,7 +16,7 @@ body, html {
 .chat-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   max-width: 1400px;
   margin: 0 auto;
   padding: 4rem 3rem;
@@ -49,7 +49,7 @@ body, html {
 
 h1 {
   font-size: 4rem;
-  font-weight: 400;
+  font-weight: 445;
   color: var(--text-primary);
   text-align: left;
   margin-bottom: 1.5rem;
@@ -76,6 +76,7 @@ h1 {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  height: calc(100vh - 12rem);
 }
 
 .chat-history {
@@ -84,6 +85,7 @@ h1 {
   padding: 2.5rem;
   scroll-behavior: smooth;
   background: var(--background-primary);
+  max-height: calc(100% - 180px);
 }
 
 .chat-message {
@@ -148,6 +150,7 @@ h1 {
   gap: 1rem;
   position: relative;
   box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.02);
+  flex-shrink: 0;
 }
 
 .message-input {
@@ -488,7 +491,8 @@ body, html {
   padding: 20px;
   text-align: center;
   cursor: pointer;
-  margin: 20px 0;
+  margin: 20px;
+  flex-shrink: 0;
   transition: all 0.3s ease;
 }
 
