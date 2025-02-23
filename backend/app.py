@@ -295,7 +295,7 @@ A student has asked: "{query}"
 {conversation_context}
 {context}
 
-Please provide a clear, concise response that directly addresses the student's question using the course information provided. 
+Please provide a clear, concise response that directly addresses only the student's question and nothing else using the provided information. 
 If discussing prerequisites, check if the student has completed the required courses based on their transcript.
 If recommending courses, consider the courses they've already taken.
 If this is a follow-up question, maintain consistency with previous responses.
@@ -478,9 +478,12 @@ def upload_transcript():
                 if relevant_courses['documents'][0]:
                     course_info.append(relevant_courses['documents'][0][0])
             
-            response_text = f"""Based on your transcript, I can see you've taken the following courses:\n\n{courses}\n\n
-            I'll remember these courses for our conversation. Would you like specific information about any of these courses 
-            or recommendations for future courses based on your academic history?"""
+            response_text = f"""Based on your transcript, I can see you've taken the following courses:
+
+{', '.join(course_num.strip() for course_num in course_numbers)}
+
+I'll remember these courses for our conversation. Would you like specific information about any of these courses 
+or recommendations for future courses based on your academic history?"""
             
             # Store this interaction in conversation memory
             if session_id:
