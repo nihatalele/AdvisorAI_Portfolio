@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
 import { useDropzone } from 'react-dropzone';
+import logo from './blockO.gif'; 
 
 function App() {
   const [message, setMessage] = useState('');
@@ -164,7 +165,10 @@ function App() {
         <ThemeIcon />
         <span>{theme === 'light' ? 'Dark' : 'Light'}</span>
       </button>
-      <h1>AdvisorAI</h1>
+      <div className = "title-container">
+        <img src = {logo} alt = "OSU Logo" className="osu-logo"/>
+        <h1>AdvisorAI</h1>
+      </div>
       <div className="chat-box">
         <div className="chat-history">
           {conversation.map((msg, index) => (
