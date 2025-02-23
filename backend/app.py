@@ -316,8 +316,8 @@ Key degree requirements (BS CSE, Individualized Specialization):
   * Software sequence: CSE 2221, 2231 (8 credits)
   * Foundations sequence: CSE 2321, 2331 (6 credits)
   * Systems sequence: CSE 2421, 2431 (7 credits)
-  * Required courses: CSE 3341, 2501/PHILOS 2338, 3901/3902/3903
-  * Core electives: CSE 3231/3241, 3421/3461, 3521/3541
+  * Required courses: CSE 3341, CSE 2501/PHILOS 2338, CSE 3901 or CSE 3902 or CSE 3903
+  * Core electives: CSE 3231 or CSE 3241, CSE 3421 or CSE 3461, CSE 3521 or 3541
   * Capstone: CSE 5911-5916 (4 credits)
 
 - Required Non-Major Courses:
@@ -384,6 +384,9 @@ def chat():
     
     # Get response from OpenAI
     response = query_openai(prompt)
+    
+    # Ensure newlines are preserved (not strictly necessary but good practice)
+    response = response.replace('\n', '\n')
     
     # Update conversation memory
     update_session_memory(session_id, user_input, response, mentioned_courses)
