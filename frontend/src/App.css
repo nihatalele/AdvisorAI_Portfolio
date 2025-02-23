@@ -501,3 +501,22 @@ body, html {
   margin: 0;
   color: var(--text-secondary);
 }
+
+/* Header styling */
+.title-container {
+  display: flex;
+  align-items: center; /* Vertically center items */
+  height: auto; /* Let content determine height */
+}
+
+.osu-logo {
+  width: 50px;
+  height: auto; /* Maintain aspect ratio */
+  margin-right: 10px;
+}
+
+h1 {
+  margin: 0; /* Remove default h1 margins that might interfere */
+  height: auto;  /* Let content determine height */
+}
+
