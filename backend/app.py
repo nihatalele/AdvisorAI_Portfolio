@@ -19,7 +19,7 @@ from werkzeug.utils import secure_filename
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app) 
 
 # Add these configurations after the CORS setup and before the routes
 UPLOAD_FOLDER = './uploads'
@@ -90,7 +90,9 @@ def get_session_memory(session_id):
             'messages': deque(maxlen=MEMORY_LIMIT),
             'last_access': now,
             'mentioned_courses': set(),
-            'student_level': 'undergraduate'  # Default to undergraduate
+            'student_level': 'undergraduate',
+            'transcript_courses': set(),
+            'completed_courses': set()
         }
     else:
         conversation_memory[session_id]['last_access'] = now
@@ -243,7 +245,16 @@ def get_relevant_courses(query, session_id=None, n_results=3):
 
 def create_prompt(query, relevant_courses, session_id=None):
     """Create a prompt combining user query, course information, and conversation history"""
-    context = "\nRelevant courses:\n"
+    memory = get_session_memory(session_id) if session_id else None
+    
+    # Add transcript context if available
+    transcript_context = ""
+    if memory and memory['transcript_courses']:
+        transcript_context = "\nStudent's completed courses from transcript:\n"
+        transcript_context += ", ".join(sorted(memory['transcript_courses']))
+        transcript_context += "\n"
+    
+    context = transcript_context + "\nRelevant courses:\n"
     
     # Extract course numbers and organize courses
     course_numbers = re.findall(r'CSE\s*\d{4}', query.upper())
@@ -266,13 +277,11 @@ def create_prompt(query, relevant_courses, session_id=None):
     
     # Add conversation history if available
     conversation_context = ""
-    if session_id:
-        memory = get_session_memory(session_id)
-        if memory['messages']:
-            conversation_context = "\nRecent conversation history:\n"
-            for msg in memory['messages']:
-                conversation_context += f"User: {msg['user']}\n"
-                conversation_context += f"Assistant: {msg['assistant']}\n"
+    if memory and memory['messages']:
+        conversation_context = "\nRecent conversation history:\n"
+        for msg in memory['messages']:
+            conversation_context += f"User: {msg['user']}\n"
+            conversation_context += f"Assistant: {msg['assistant']}\n"
     
     # Combine all context
     for doc in exact_matches:
@@ -284,16 +293,12 @@ def create_prompt(query, relevant_courses, session_id=None):
 A student has asked: "{query}"
 
 {conversation_context}
-
-Based on the following course information, provide a helpful response:
 {context}
 
 Please provide a clear, concise response that directly addresses the student's question using the course information provided. 
-If this is a follow-up question, make sure to maintain consistency with previous responses.
-If a specific course was asked about, focus primarily on that course's information.
-For related courses, only mention them if they are directly relevant to the student's question.
-If discussing prerequisites, be specific about course numbers and requirements.
-If the student's question isn't directly related to the courses shown, you can provide general academic advice while mentioning relevant courses.
+If discussing prerequisites, check if the student has completed the required courses based on their transcript.
+If recommending courses, consider the courses they've already taken.
+If this is a follow-up question, maintain consistency with previous responses.
 
 Response:"""
     
@@ -395,59 +400,74 @@ def extract_courses_from_pdf(file_path):
 
 @app.route('/upload-transcript', methods=['POST'])
 def upload_transcript():
-   if 'file' not in request.files:
-       return jsonify({"error": "No file part"}), 400
-  
-   file = request.files['file']
-   if file.filename == '':
-       return jsonify({"error": "No selected file"}), 400
-  
-   if file and allowed_file(file.filename):
-       try:
-           filename = secure_filename(file.filename)
-           file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-           file.save(file_path)
-          
-           # Extract courses from PDF
-           courses = extract_courses_from_pdf(file_path)
-          
-           # Clean up the uploaded file
-           os.remove(file_path)
-          
-           # Check if there was an error during extraction
-           if courses.startswith("Error:"):
-               return jsonify({"error": courses}), 400
-          
-           # Get course information for each extracted course
-           course_info = []
-           course_numbers = re.findall(r'CSE\s+\d{4}', courses)
-          
-           if not course_numbers:
-               return jsonify({"error": "No CSE courses found in the transcript"}), 400
-          
-           for course_num in course_numbers:
-               relevant_courses = get_relevant_courses(course_num, n_results=1)
-               if relevant_courses['documents'][0]:
-                   course_info.append(relevant_courses['documents'][0][0])
-          
-           response_text = f"""Based on your transcript, I can see you've taken the following courses:\n\n{courses}\n\n
-           Would you like specific information about any of these courses or recommendations for future courses based on your academic history?"""
-          
-           return jsonify({
-               "response": response_text,
-               "courses": course_info
-           })
-          
-       except Exception as e:
-           error_msg = str(e)
-           print(f"Error in upload_transcript: {error_msg}")
-           return jsonify({"error": f"Error processing file: {error_msg}"}), 500
-       finally:
-           # Ensure the uploaded file is cleaned up even if an error occurs
-           if os.path.exists(file_path):
-               os.remove(file_path)
-  
-   return jsonify({"error": "Invalid file type"}), 400
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['file']
+    session_id = request.form.get('session_id')  # Change from request.json to request.form
+    
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    
+    if file and allowed_file(file.filename):
+        file_path = None
+        try:
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
+            
+            # Extract courses from PDF
+            courses = extract_courses_from_pdf(file_path)
+            
+            # Check if there was an error during extraction
+            if isinstance(courses, str) and courses.startswith("Error:"):  # Add type check
+                return jsonify({"error": courses}), 400
+            
+            # Get course information and update session memory
+            course_info = []
+            course_numbers = re.findall(r'CSE\s+\d{4}', courses)
+            
+            if not course_numbers:
+                return jsonify({"error": "No CSE courses found in the transcript"}), 400
+            
+            # Update session memory with transcript courses
+            if session_id:
+                memory = get_session_memory(session_id)
+                memory['transcript_courses'].update(course_numbers)
+                memory['completed_courses'].update(course_numbers)
+            
+            for course_num in course_numbers:
+                relevant_courses = get_relevant_courses(course_num, n_results=1)
+                if relevant_courses['documents'][0]:
+                    course_info.append(relevant_courses['documents'][0][0])
+            
+            response_text = f"""Based on your transcript, I can see you've taken the following courses:\n\n{courses}\n\n
+            I'll remember these courses for our conversation. Would you like specific information about any of these courses 
+            or recommendations for future courses based on your academic history?"""
+            
+            # Store this interaction in conversation memory
+            if session_id:
+                update_session_memory(
+                    session_id,
+                    "Uploaded transcript",
+                    response_text,
+                    set(course_numbers)
+                )
+            
+            return jsonify({
+                "response": response_text,
+                "courses": course_info
+            })
+            
+        except Exception as e:
+            error_msg = str(e)
+            print(f"Error in upload_transcript: {error_msg}")
+            return jsonify({"error": f"Error processing file: {error_msg}"}), 500
+        finally:
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+    
+    return jsonify({"error": "Invalid file type"}), 400
 
 
 

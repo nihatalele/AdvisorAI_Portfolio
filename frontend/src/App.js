@@ -16,6 +16,7 @@ function App() {
   const chatEndRef = useRef(null);
   const [uploadedFiles, setUploadedFiles] = useState([]); // State for uploaded files
   const [theme, setTheme] = useState('light');
+  const [sessionId] = useState(() => Math.random().toString(36).substring(7));
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -38,7 +39,10 @@ function App() {
     setError(null);
 
     try {
-      const res = await axios.post('http://127.0.0.1:5000/chat', { message });
+      const res = await axios.post('http://127.0.0.1:5000/chat', { 
+        message,
+        session_id: sessionId
+      });
       const aiMessage = { role: 'assistant', content: res.data.response };
       setConversation((prev) => [...prev, aiMessage]);
     } catch (error) {
@@ -74,6 +78,7 @@ function App() {
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('session_id', sessionId);
 
     try {
       const response = await axios.post('http://127.0.0.1:5000/upload-transcript', formData, {
@@ -82,6 +87,10 @@ function App() {
         },
       });
 
+      if (response.data.error) {
+        throw new Error(response.data.error);
+      }
+
       const aiMessage = { 
         role: 'assistant', 
         content: response.data.response 
@@ -89,7 +98,7 @@ function App() {
       setConversation(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error('Error uploading transcript:', error);
-      setError('Error processing transcript. Please try again.');
+      setError(error.response?.data?.error || 'Error processing transcript. Please try again.');
     } finally {
       setLoading(false);
     }
