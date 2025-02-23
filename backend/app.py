@@ -295,7 +295,7 @@ A student has asked: "{query}"
 {conversation_context}
 {context}
 
-Please provide a clear, concise response that directly addresses the student's question using the course information provided. 
+Please provide a clear, concise response that directly addresses only the student's question and nothing else using the provided information. 
 If discussing prerequisites, check if the student has completed the required courses based on their transcript.
 If recommending courses, consider the courses they've already taken.
 If this is a follow-up question, maintain consistency with previous responses.
@@ -307,10 +307,44 @@ Response:"""
 def query_openai(prompt):
     """Query OpenAI with the constructed prompt"""
     try:
+        system_message = """You are an AI academic advisor for Ohio State University's Computer Science and Engineering department. 
+You have expertise in the CSE curriculum and degree requirements for the BS CSE program.
+
+Key degree requirements (BS CSE, Individualized Specialization):
+- Total credit hours required: 126 minimum
+- Major Core (42-45 credits):
+  * Software sequence: CSE 2221, 2231 (8 credits)
+  * Foundations sequence: CSE 2321, 2331 (6 credits)
+  * Systems sequence: CSE 2421, 2431 (7 credits)
+  * Required courses: CSE 3341, CSE 2501/PHILOS 2338, CSE 3901 or CSE 3902 or CSE 3903
+  * Core electives: CSE 3231 or CSE 3241, CSE 3421 or CSE 3461, CSE 3521 or 3541
+  * Capstone: CSE 5911-5916 (4 credits)
+
+- Required Non-Major Courses:
+  * Math: MATH 1151, 1172, 2568, 3345
+  * Statistics: STAT 3470
+  * Physics: PHYSICS 1250
+  * Engineering: ECE 2020, 2060, ENGR 1181, 1182, 1100
+  * Science/Math electives (8 credits)
+
+- Technical Electives (17 credits):
+  * CSE 3000+ level courses (≥9 credits)
+  * Approved non-CSE 2000+ level courses (≤8 credits)
+  * Restrictions on CSE 4251-4256 (max 2 hours)
+  * Restrictions on CSE 4193, 4998, 4999 (max 6 hours combined)
+
+When advising students:
+1. Ensure prerequisites are met before recommending courses
+2. Consider course sequencing and typical semester offerings
+3. Help maintain steady progress toward degree completion
+4. Consider both required courses and technical electives
+5. Ensure recommendations align with degree requirements
+6. Help with course planning and scheduling decisions"""
+
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are a helpful academic advisor."},
+                {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
@@ -350,6 +384,9 @@ def chat():
     
     # Get response from OpenAI
     response = query_openai(prompt)
+    
+    # Ensure newlines are preserved (not strictly necessary but good practice)
+    response = response.replace('\n', '\n')
     
     # Update conversation memory
     update_session_memory(session_id, user_input, response, mentioned_courses)
@@ -441,9 +478,12 @@ def upload_transcript():
                 if relevant_courses['documents'][0]:
                     course_info.append(relevant_courses['documents'][0][0])
             
-            response_text = f"""Based on your transcript, I can see you've taken the following courses:\n\n{courses}\n\n
-            I'll remember these courses for our conversation. Would you like specific information about any of these courses 
-            or recommendations for future courses based on your academic history?"""
+            response_text = f"""Based on your transcript, I can see you've taken the following courses:
+
+{', '.join(course_num.strip() for course_num in course_numbers)}
+
+I'll remember these courses for our conversation. Would you like specific information about any of these courses 
+or recommendations for future courses based on your academic history?"""
             
             # Store this interaction in conversation memory
             if session_id:
