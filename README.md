@@ -29,7 +29,7 @@ AdvisorAI is an intelligent academic advising system designed to assist OSU's Co
 ---
 
 ## Team
-Project developed collaboratively with 3 teammates; I contributed to both backend AI processing and frontend interface integration.
+Project developed collaboratively with 3 teammates [Siddarth Thummala, Kanishk Kovvuru, & Aanya Tummalapalli]; I contributed to both backend AI processing and frontend interface integration.
 
 ---
 
