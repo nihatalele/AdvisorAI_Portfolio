@@ -38,3 +38,7 @@ Project developed collaboratively with 3 teammates [Siddarth Tummala, Kanishk Ko
 - Demonstrates application of AI and RAG pipelines to real-world educational problems  
 - Showcases collaborative development with a team on a full-stack AI project  
 
+---
+
+## Demo
+Watch our demo video here: https://youtu.be/wn4N1M6M2eQ?si=Cg0nEv8c1Ukl4zAD
